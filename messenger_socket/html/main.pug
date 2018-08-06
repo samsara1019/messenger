@@ -28,6 +28,7 @@ block content
           i#iBtnAttach.small.material-icons attach_file
           i#iBtnSend.small.material-icons send
           input#attachFile(type='file' style='display:none;')
+    //footer 탭 영역
     footer
       ul#tabs.tabs.tabs-fixed-width
         li.tab.col.s3.blue.darken-2
@@ -39,12 +40,148 @@ block content
         li.tab.col.s3.blue.darken-2
           a#tabUserList(href="#tab-1")
            i.small.material-icons.white-text settings
-
+    //template 영역
+    //template 유저리스트 영역
+    script(id='templateMessageList', type="text/template").
+      <li id="li<%=key%>" class="collection-item avatar" data-key="<%=key%>">
+        <img src="<%=profileImg ? profileImg : 'img/noprofile.png'  %>" alt="" class="circle">
+        <span class="title"><%=userName %></span><span class="time"><%=time %></span>
+        <p><%=message %></p>
+      </li>
+    //template 메세지리스트 영역
+    script(id='templateMessageList', type="text/template").
+      <li id="li<%=key%>" class="collection-item avatar" data-key="<%=key%>">
+        <img src="<%=profileImg ? profileImg : 'img/noprofile.png'  %>" alt="" class="circle">
+        <span class="title"><%=userName %></span><span class="time"><%=time %></span>
+        <p><%=message %></p>
+      </li>
+    //template 채팅방리스트 영역
+    script(id='templateRoomList', type="text/template").
+      <li id="liRoom<%=roomId %>" data-roomId="<%=roomId %>" data-roomTitle='<%=roomTitle%>' data-roomUserName="<%=roomUserName%>"
+        data-roomType="<%=roomType%>" data-roomOneVSOneTarget="<%=roomOneVSOneTarget%>" data-roomUserlist="<%=roomUserlist %>" class="collection-item avatar" >
+        <img src="<%=profileImg ? profileImg : 'img/noprofile.png'  %>" alt="" class="circle">
+        <span class="title"><%=roomTitle%></span>
+        <p><%=lastMessage %></p>
+        <a href="#!" class="secondary-content"> <%=datetime %></a>
+      </li>
+    
     script(src='https://code.jquery.com/jquery-1.11.1.js')
     script(src='jquery-3.2.1.min.js')
     script(src='materialize.min.js')
     script(src='underscore-min.js')
     script.
+      function SocketChat(){
+        this.init();
+        this.initEvent();
+      }
+      
+      SocketChat.prototype.init = function(){
+        this.dvLogin  = document.getElementById('dvLogin');
+        this.dvJoin = document.getElementById('dvJoin');
+        this.liEmailJoinSubmit = document.getElementById('liEmailJoinSubmit');
+        this.liEmailBtn = document.getElementById('liEmailBtn');
+        this.dvAuth = document.getElementById('dvAuth');
+        this.liLogOut = document.getElementById('liLogOut');
+        this.INDEXDB_DB_NAME = "USER";
+        this.INDEXDB_VERSION = 1;
+        this.INDEXDB_STORE ="Users";
+        this.ulUserList = document.getElementById('ulUserList');
+        this.tabMessageList = document.getElementById('tabMessageList');
+        this.aBackBtn = document.getElementById('aBackBtn');
+        this.aInvite = document.getElementById('aInvite');
+        this.MAKEID_CHAR = '@make@';
+        this.DATETIME_CHAR = '@time@';
+        this.spTitle = document.getElementById('spTitle');
+        this.ulMessageList = document.getElementById('ulMessageList');
+        this.dvInputChat = document.getElementById('dvInputChat');
+        this.iBtnSend = document.getElementById('iBtnSend');
+        this.SPLIT_CHAR = '@spl@';
+        this.ONE_VS_ONE = 'ONE_VS_ONE';
+        this.MULTI = 'MULTI';
+        this.ulRoomList = document.getElementById('ulRoomList');
+        this.ORIGIN_TITLE = "Firebase-Tutorial";
+        this.ulAddUserList = document.getElementById('ulAddUserList');
+        this.aConfirmInvite =document.getElementById('aConfirmInvite');
+        this.iBtnAttach = document.getElementById('iBtnAttach');
+        this.attachFile = document.getElementById('attachFile');
+      }
+
+      SocketChat.prototype.initEvent = function(){
+        this.liEmailJoin.addEventListener('click', this.displayEmailJoin.bind(this));
+        this.liEmailJoinSubmit.addEventListener('click', this.createEmailUser.bind(this));
+        this.liEmailBtn.addEventListener('click', this.onEmailBtnClick.bind(this));
+        this.liLogOut.addEventListener('click', this.logOut.bind(this));
+        this.dvInputChat.addEventListener('keydown', this.onEnterKey.bind(this));
+        this.iBtnSend.addEventListener('click', this.saveMessages.bind(this));
+        this.dvInputChat.addEventListener("paste", this.onPaste.bind(this));
+        this.aBackBtn.addEventListener('click', this.onBackBtnClick.bind(this));
+        this.aConfirmInvite.addEventListener('click', this.onConfirmInviteClick.bind(this));
+        this.iBtnAttach.addEventListener('click', this.onBtnAttachClick.bind(this));
+        this.attachFile.addEventListener('change', this.onAttachFile.bind(this));
+      }
+
+      SocketChat.prototype.saveMessages = function(inviteMessage, downloadURL, fileName){
+        var user = {};
+        var msg = this.dvInputChat.innerHTML.trim();
+        //초대메세지
+        if(inviteMessage && inviteMessage.length > 0){
+          msg = inviteMessage;
+        }
+
+        if(msg.length > 0){
+          this.dvInputChat.focus();
+          this.dvInputChat.innerHTML = '';
+          var multiUpdates = {};
+          var messageRefKey = "testMessageKey"; // 메세지 키값 구하기
+          var convertMsg = downloadURL ? msg : FirebaseChat.convertMsg(msg); //다운로드 URL일 경우 convert하지 않음
+
+
+          if(this.ulMessageList.getElementsByTagName('li').length === 0){ //메세지 처음 입력 하는 경우
+            var roomUserlistLength =this.roomUserlist.length;
+            for(var i=0; i < roomUserlistLength; i++){
+              multiUpdates['RoomUsers/' +this.roomId+'/' +this.roomUserlist[i]] = true;
+            }
+            this.database.ref().update(multiUpdates); // 권한 때문에 먼저 저장해야함
+            this.loadMessageList(this.roomId); //방에 메세지를 처음 입력하는 경우 권한때문에 다시 메세지를 로드 해주어야함
+          }
+
+          multiUpdates ={}; // 변수 초기화
+
+            //메세지  저장
+          //- multiUpdates['Messages/' +this.roomId + '/' + messageRefKey] = {
+          //-   uid: "testuid",
+          //-   userName: :testName,
+          //-   message: convertMsg, // 태그 입력 방지
+          //-   profileImg: user.photoURL ? user.photoURL : '',
+          //-   timestamp: "0000-00-00"  //서버시간 등록하기
+          //- }
+
+          //유저별 룸리스트 저장
+          var roomUserListLength = this.roomUserlist.length;
+          if(this.roomUserlist && roomUserListLength > 0){
+            for(var i = 0; i < roomUserListLength ; i++){
+              multiUpdates['UserRooms/'+ this.roomUserlist[i] +'/'+ this.roomId] = {
+                roomId : this.roomId,
+                roomUserName : this.roomUserName.join(this.SPLIT_CHAR),
+                roomUserlist : this.roomUserlist.join(this.SPLIT_CHAR),
+                roomType : roomUserListLength > 2 ? this.MULTI : this.ONE_VS_ONE,
+                roomOneVSOneTarget : roomUserListLength == 2 && i == 0 ? this.roomUserlist[1] :  // 1대 1 대화이고 i 값이 0 이면
+                  roomUserListLength == 2 && i == 1 ? this.roomUserlist[0]   // 1대 1 대화 이고 i값이 1이면
+                    : '', // 나머지
+                lastMessage : downloadURL ? '다운로드' : convertMsg,
+                profileImg : user.photoURL ? user.photoURL : '',
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+
+              };
+            }
+          }
+          this.database.ref().update(multiUpdates);
+        }
+      }
+
+
+
+      
       $(() => {        
         const socket = io();
         const name = socket.id;
@@ -54,20 +191,11 @@ block content
         ];
         let num = 1;
 
-        $('#makeroom').click(function() {
-          $('#ulUserList').append($('<li>').text('room'+num++));
-        });
-
         $('#iBtnSend').click(function() {
           socket.emit('chat message', $('#dvInputChat').text());
           $('#dvInputChat').val('');
           return false;
         });
-        //- $('iBtnSend').submit(() => {
-        //-   socket.emit('chat message', $('#m').val());
-        //-   $('#m').val('');
-        //-   return false;
-        //- });
 
         socket.on('chat message', (msg) => {
           const name = socket.id;
