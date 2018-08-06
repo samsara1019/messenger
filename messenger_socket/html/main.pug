@@ -1,0 +1,77 @@
+extends ./layout.pug
+block title
+    title 메신저
+block content
+  body
+    header.navbar-fixed
+      nav
+        div.nav-wrapper.valign-wrapper
+          a#aBackBtn.small.material-icons.left.hiddendiv(href="#") arrow_back
+          span#spTitle.brand-logo.center Messenger
+          a#aInvite.small.material-icons.right.hiddendiv.modal-trigger(href="#dvAddUser") add
+    main
+      //유저리스트탭 영역
+      div#tab-1.col.s12.tabContents
+        ul#ulUserList.collection
+      //채팅방리스트탭 영역
+      div#tab-2.col.s12.tabContents(style='display:none;')
+        ul#ulRoomList.collection
+      //설정탭 영역
+      div#tab-3.col.s12.tabContents
+        ul.collection
+          li#liLogOut.collection-item 로그아웃
+      //채팅방 메세지화면 영역
+      div#tab-4.col.s12.tabContents
+        ul#ulMessageList.collection
+        div#dvMsgForm.meta-bar.chat
+          div#dvInputChat(contenteditable placeholder="메세지 작성")
+          i#iBtnAttach.small.material-icons attach_file
+          i#iBtnSend.small.material-icons send
+          input#attachFile(type='file' style='display:none;')
+    footer
+      ul#tabs.tabs.tabs-fixed-width
+        li.tab.col.s3.blue.darken-2
+          a#tabUserList(href="#tab-1")
+           i.small.material-icons.white-text person
+        li.tab.col.s3.blue.darken-2
+          a#tabUserList(href="#tab-1")
+           i.small.material-icons.white-text message
+        li.tab.col.s3.blue.darken-2
+          a#tabUserList(href="#tab-1")
+           i.small.material-icons.white-text settings
+
+    script(src='https://code.jquery.com/jquery-1.11.1.js')
+    script(src='jquery-3.2.1.min.js')
+    script(src='materialize.min.js')
+    script(src='underscore-min.js')
+    script.
+      $(() => {        
+        const socket = io();
+        const name = socket.id;
+        let room = [
+          { _id: 'room01', members: []},
+          { _id: 'room02', members: []},
+        ];
+        let num = 1;
+
+        $('#makeroom').click(function() {
+          $('#ulUserList').append($('<li>').text('room'+num++));
+        });
+
+        $('#iBtnSend').click(function() {
+          socket.emit('chat message', $('#dvInputChat').text());
+          $('#dvInputChat').val('');
+          return false;
+        });
+        //- $('iBtnSend').submit(() => {
+        //-   socket.emit('chat message', $('#m').val());
+        //-   $('#m').val('');
+        //-   return false;
+        //- });
+
+        socket.on('chat message', (msg) => {
+          const name = socket.id;
+          $('#ulMessageList').append($('<li>').text(name + ":" +msg));
+        });
+      });
+      
